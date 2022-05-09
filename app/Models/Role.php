@@ -7,12 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Role extends Model
 {
+
+    use SoftDeletes;
     protected $fillable = [
         'libelle'
     ];
-    use SoftDeletes;
-
-    public function role(){
-        return $this->belongsToMany(Role::class,'user_roles','user_id','role_id');
-    }
 }

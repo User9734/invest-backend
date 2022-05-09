@@ -10,6 +10,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 
 class User extends Authenticatable
 {
+    use HasApiTokens, SoftDeletes, Notifiable;
+
     protected $fillable = [
         'nom',
         'prenoms',
@@ -20,10 +22,9 @@ class User extends Authenticatable
         'solde'
     ];
     protected $hidden = ['password'];
-    use HasApiTokens, SoftDeletes, Notifiable;
-
+    
     public function role(){
-        return $this->belongsToMany(Role::class,'user_roles','user_id','role_id');
+        return $this->belongsToMany(Role::class,'user_roles','user_id','role_id')->wherePivot('deleted_at',null);
     }
 
     public function package(){

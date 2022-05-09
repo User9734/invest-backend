@@ -84,11 +84,19 @@ class TypeController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function Change(Request $request)
     {
-        $type = Type::find($id);
+        $type = Type::find($request->id);
         $type->libelle = $request->libelle;
         $type->save();
+        if (request()->hasFile('photo')) {
+            $file = $request->file('photo');
+                $fileName= $file->getClientOriginalName();
+                $file->move(public_path('/images'),$fileName);
+                $type->photo = "/images/" . $fileName;
+                $type->save();
+        }
+        
         if ($type->wasChanged()) {
             return response()->json([
                 'data' => $type,
@@ -113,6 +121,17 @@ class TypeController extends Controller
         return response()->json([
             'status' => 'true',
             'data' => $counted
+        ]);
+    }
+
+    public function getShit($id){
+        $package = Type::with('package')->where('id', $id)->first();
+
+        
+        return response()->json([
+            'status' => 'true',
+            'data' => $package,
+            /* 'aricles' => count($package->package) */
         ]);
     }
 

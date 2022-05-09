@@ -9,6 +9,9 @@ use App\Models\Package;
 use App\Models\User;
 use App\Models\Type;
 
+use function PHPSTORM_META\map;
+use function PHPUnit\Framework\isEmpty;
+
 class PackageController extends Controller
 {
     /**
@@ -18,10 +21,10 @@ class PackageController extends Controller
      */
     public function index()
     {
-        $packages = Package::with('sell')->with('user')->get();
-        $packages->each(function($package){
-            $type = Type::find($package->type_id);
-            $package->type = $type;
+        $packages = Package::with('sell')->with('type')->get();
+        $packages->each(function ($package){
+            $seller = User::find($package->user_id);
+            $package->seller = $seller;
         });
         return response()->json([
             'data' => $packages,
@@ -31,12 +34,45 @@ class PackageController extends Controller
 
     public function getPublished()
     {
-        $packages = Package::with('sell')->where('publie', 1)->get();
-        $packages->each(function($package){
-            $user = User::find($package->user_id);
-            $type = Type::find($package->type_id);
-            $package->user = $user;
-            $package->type = $type;
+        $packages = Package::with('type')->with('sell')->where('etat', 'publie')->get();
+        $packages->each(function ($package){
+            $seller = User::find($package->user_id);
+            $package->seller = $seller;
+        });
+        return response()->json([
+            'data' => $packages,
+            'status' => 'true'
+        ]);
+    }
+
+    public function getSubscribed($id)
+    {
+        $packages = Package::with('type')->has('sell')->where('user_id', $id)->get();
+        return response()->json([
+            'data' => $packages,
+            'status' => 'true'
+        ]);
+    }
+
+    public function getUnpublished()
+    {
+        $packages = Package::with('type')->with('sell')->where('etat', 'en cours de traitement')->get();
+        $packages->each(function ($package){
+            $seller = User::find($package->user_id);
+            $package->seller = $seller;
+        });
+        return response()->json([
+            'data' => $packages,
+            'status' => 'true'
+        ]);
+    }
+
+    public function getRejected()
+    {
+        $packages = Package::with('type')->with('sell')->where('etat', 'rejete')->get();
+        $packages->each(function ($package){
+            $seller = User::find($package->user_id);
+            $package->seller = $seller;
         });
         return response()->json([
             'data' => $packages,
@@ -58,6 +94,7 @@ class PackageController extends Controller
             ->join('users', 'user_roles.user_id', '=', 'users.id')
             ->join('roles', 'user_roles.role_id', '=', 'roles.id')
             ->select('users.*')
+            ->where('users.deleted_at', null)
             ->where('roles.libelle', 'fournisseur')
             ->get();
         $user = User::find($request->user_id);
@@ -76,12 +113,13 @@ class PackageController extends Controller
                     $package = new Package();
                         $package->cout_acquisition = $request->cout_acquisition;
                         $package->cout_vente = $request->cout_vente;
-                        $package->gain = intval($request->cout_vente) - intval($request->cout_acquisition);
+                        $package->gain_par_piece = intval($request->cout_vente) - intval($request->cout_acquisition);
                         $package->nb_products = $request->nb_products;
                         $package->nb_jours = $request->nb_jours;
                         $package->user_id = $request->user_id;
                         $package->type_id = $request->type_id;
                         $package->libelle = $request->libelle;
+                        $package->pieces_restantes = $request->nb_products;
                         $package->save();
                     return response()->json([
                         'data' => $package,
@@ -148,11 +186,9 @@ class PackageController extends Controller
      */
     public function show($id)
     {
-        $package = Package::find($id);
+        $package = Package::with('sell')->with('user')->where('id', $id)->first();
         if ($package != null) {
-            $user = User::find($package->user_id);
             $type = Type::find($package->type_id);
-            $package->user = $user;
             $package->type = $type;
             return response()->json([
                 'data' => $package,
@@ -176,39 +212,69 @@ class PackageController extends Controller
     public function update(Request $request, $id)
     {
         
-        $user = User::find($request->user_id);
-        $type = Type::find($request->type_id);
-        if ($type != null && $user != null) {
             $package = Package::find($id);
-            $package->cout_acquisition = $request->cout_acquisition;
-            $package->cout_vente = $request->cout_vente;
-            $package->gain = $request->cout_vente - $request->cout_acquisition;
-            $package->nb_products = $request->nb_products;
-            $package->nb_jours = $request->nb_jours;
-            $package->publie = $request->publie;
-            $package->user_id = $request->user_id;
-            $package->type_id = $request->type_id;
-            $package->libelle = $request->libelle;
-            $package->save();
-            if ($package->wasChanged()) {
+            if (!isEmpty($package->sell) || $package->etat == 'publie') {
                 return response()->json([
-                    'data' => $package,
-                    'status' => 'true'
+                    'status' => 'false',
+                    'message' => 'article déja acheté ou déja publié'
                 ]);
+            } else {
+                $package->etat = $request->etat;
+                $package->cout_acquisition = $request->cout_acquisition;
+                        $package->cout_vente = $request->cout_vente;
+                        $package->nb_products = $request->nb_products;
+                        $package->nb_jours = $request->nb_jours;
+                        $package->user_id = $request->user_id;
+                        $package->type_id = $request->type_id;
+                        $package->libelle = $request->libelle;
+                $package->commentaire_rejet = $request->commentaire;
+                $package->save();
+                if ($package->wasChanged()) {
+                    return response()->json([
+                        'data' => $package,
+                        'status' => 'true'
+                    ]);
+                }
+                else{
+                    return response()->json([
+                        'status' => 'false'
+                    ]);
+                }
             }
-            else{
-                return response()->json([
-                    'status' => 'false'
-                ]);
-            }
-        } else {
-            return response()->json([
-                'status' => 'false',
-                'message' => 'L\'identifiant de l\'utilisateur ou celui du type de package est introuvable'
-            ]);
-        }
+            
         
     }
+
+    public function edit(Request $request, $id)
+    {
+        
+            $package = Package::with('sell')->find($id);
+            if (!isEmpty($package->sell)) {
+                return response()->json([
+                    'status' => 'false',
+                    'message' => 'article déja acheté'
+                ]);
+            } else {
+                $package->etat = $request->etat;
+                $package->commentaire_rejet = $request->commentaire;
+                $package->save();
+                if ($package->wasChanged()) {
+                    return response()->json([
+                        'data' => $package,
+                        'status' => 'true'
+                    ]);
+                }
+                else{
+                    return response()->json([
+                        'status' => 'false',
+                        'message' => 'not edited'
+                    ]);
+                }
+            }
+            
+        
+    }
+
 
     /**
      * Remove the specified resource from storage.

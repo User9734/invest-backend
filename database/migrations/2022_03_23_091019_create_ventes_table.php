@@ -17,8 +17,8 @@ class CreateVentesTable extends Migration
             $table->id();
             $table->integer('nb_ventes');
             $table->integer('cout_total');
-            $table->unsignedBigInteger('type_id');
-            $table->foreign('type_id')->references('id')->on('types');
+            $table->unsignedBigInteger('package_id');
+            $table->foreign('package_id')->references('id')->on('packages');
             
             $table->timestamps();
         });

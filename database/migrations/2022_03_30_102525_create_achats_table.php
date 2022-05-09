@@ -22,6 +22,7 @@ class CreateAchatsTable extends Migration
             $table->unsignedBigInteger('user_id');
             $table->foreign('user_id')->references('id')->on('users');
             $table->unsignedBigInteger('package_id');
+            $table->integer('nb_products');
             $table->foreign('package_id')->references('id')->on('packages');
             $table->softDeletes();
             $table->timestamps();

@@ -81,14 +81,27 @@ class UserController extends Controller
             'password',
             'role_id' 
         ])) {
-            $user = User::create([
-                'nom' => $request->nom,
-                'prenoms' => $request->prenoms,
-                'phone' => $request->phone,
-                'email' => $request->email,
-                'lieu_habitation' => $request->lieu_habitation,
-                'password' => Hash::make($request->password),
-            ]);
+            $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            $charactersLength = strlen($characters);
+            $randomString = '';
+            for ($i = 0; $i < 5; $i++) {
+                $randomString .= $characters[rand(0, $charactersLength - 1)];
+            }
+            $numbers = '0123456789';
+            $numbersLength = strlen($numbers);
+            for ($i = 0; $i < 5; $i++) {
+                $randomString .= $numbers[rand(0, $numbersLength - 1)];
+            }
+            $user = new User();
+            $user->nom = $request->nom;
+            $user->prenoms = $request->prenoms;
+            $user->phone = $request->phone;
+            $user->registre_commerce = $request->registre_commerce;
+            $user->code = $randomString;
+            $user->email = $request->email;
+            $user->lieu_habitation = $request->lieu_habitation;
+            $user->password = Hash::make($request->password);
+            $user->save();
             $roles = $request->role_id;
             for ($i=0;$i<count($roles);$i++) 
             {
@@ -105,15 +118,8 @@ class UserController extends Controller
                         'message' => 'user already has the '. $i .'th role added'
                     ]);
                 } */
-                $roles = DB::table('user_roles')
-            ->join('users', 'user_roles.user_id', '=', 'users.id')
-            ->join('roles', 'user_roles.role_id', '=', 'roles.id')
-            ->select('roles.*')
-            ->where('users.id', $user->id)
-            ->get();
-            $user->roles = $roles;
             return response()->json([
-                'data' => $user,
+                'data' => $user->with('role')->first(),
                 'status' => 'true',
                 'message' => 'user created successfully'
             ]);
@@ -137,26 +143,10 @@ class UserController extends Controller
      */
     public function show($id)
     {
-        $tab = [];
-        $user = User::find($id);
+        $user = User::with('role')->where('id', $id)->first();
         
         if ($user != null) {
-            $operations = Operation::where('user_id', $id)
-                                ->where('deleted_at', null)
-                                ->get();
-        $user->operations = $operations;
-        $roles = DB::table('user_roles')
-            ->join('users', 'user_roles.user_id', '=', 'users.id')
-            ->join('roles', 'user_roles.role_id', '=', 'roles.id')
-            ->select('roles.libelle')
-            ->where('users.id', $user->id)
-            ->where('deleted_at', null)
-            ->get();
-        foreach($roles as $key => $role){
-            array_push($tab,$role->libelle);
-        };
-        $user->roles = $roles;
-        $user->tab = $tab;
+            
             return response()->json([
                 
                 'data' => $user,
@@ -231,7 +221,7 @@ class UserController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $user = User::find($id);
+        $user = User::with('role')->where('id', $id)->first();
         $user->nom = $request->nom;
         $user->prenoms = $request->prenoms;
         $user->phone = $request->phone;
@@ -239,18 +229,15 @@ class UserController extends Controller
         $user->lieu_habitation = $request->lieu_habitation;
         $user->password = Hash::make($request->password);
         $user->save();
-        if (UserRole::where('user_id', $user->id)->where('role_id', $request->role_id)->first() == null) {
-            $usr_role = new UserRole();
-            $usr_role->role_id = $request->role_id;
-            $usr_role->user_id = $user->id;
-            $usr_role->save();
-            $roles = DB::table('user_roles')
-            ->join('users', 'user_roles.user_id', '=', 'users.id')
-            ->join('roles', 'user_roles.role_id', '=', 'roles.id')
-            ->select('roles.*', 'users.id')
-            ->where('users.id', $user->id)
-            ->get();
-            $user->roles = $roles;
+        UserRole::where('user_id', $user->id)->delete();
+            $roles = $request->role_id;
+            for ($i=0;$i<count($roles);$i++) 
+            {
+                    $usr_role = new UserRole();
+                    $usr_role->role_id = $roles[$i];
+                    $usr_role->user_id = $user->id;
+                    $usr_role->save();
+            }
             if ($user->wasChanged()) {
                 return response()->json([
                     'data' => $user,
@@ -262,12 +249,6 @@ class UserController extends Controller
                     'status' => 'false'
                 ]);
             }
-        } else {
-            return response()->json([
-                'status' => 'false',
-                'message' => 'user already has this role'
-            ]);
-        }
         
     }
 
@@ -311,8 +292,10 @@ class UserController extends Controller
         $user =  User::with('souscription')->find($id);
          $user->souscription->each(function ($package){
              $rapport = Rapport::where('achat_id',$package->pivot->id)->get();
+             $achat = Achat::find($package->pivot->id);
             $package->rapport = $rapport;
-            $package->invest = $package->cout_acquisition * $package->nb_products;
+            $package->nb_achetes = $achat->nb_pieces;
+            $package->invest = $package->cout_acquisition * $achat->nb_pieces;
             $package->recover = $rapport->sum('cout');
 
         }); 

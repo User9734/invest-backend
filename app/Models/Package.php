@@ -12,7 +12,6 @@ class Package extends Model
         'nb_products',
         'cout_vente',
         'nb_jours',
-        'publie',
         'user_id',
         'type_id',
         'libelle'
@@ -25,6 +24,10 @@ class Package extends Model
 
     public function type(){
         return $this->belongsTo(Type::class);
+    }
+
+    public function seller(){
+        return $this->belongsTo(User::class);
     }
 
     public function sell(){

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Operation;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+
 class operationController extends Controller
 {
     /**
@@ -15,10 +17,42 @@ class operationController extends Controller
     public function index()
     {
         $operations = Operation::all();
+        foreach ($operations as $key => $operation) {
+            $init = User::find($operation->initiateur_id);
+            $operation->initiateur = $init;
+        }
         return response()->json([
             'data' => $operations,
             'status' => 'true'
         ]);
+    }
+
+    public function getSellerOps($id)
+    {
+        $sellers = DB::table('user_roles')
+            ->join('users', 'user_roles.user_id', '=', 'users.id')
+            ->join('roles', 'user_roles.role_id', '=', 'roles.id')
+            ->select('users.*')
+            ->where('users.deleted_at', null)
+            ->where('roles.libelle', 'fournisseur')
+            ->get();
+        if ($sellers->contains('id', $id)) {
+            $operations = Operation::where('id', $id)->get();
+            foreach ($operations as $key => $operation) {
+                $init = User::find($operation->initiateur_id);
+                $operation->initiateur = $init;
+            }
+            return response()->json([
+                'data' => $operations,
+                'status' => 'true'
+            ]);
+        } else {
+            return response()->json([
+                'status' => 'flase',
+                'message' => 'user isn\'t a seller'
+            ]);
+        }
+        
     }
 
     /**
@@ -29,12 +63,19 @@ class operationController extends Controller
      */
     public function store(Request $request)
     {
+        $initiator = $request->user('api');
         $request->validate([
             'type' => 'required|string',
             'amount' => 'required|numeric',
             'user_id' => 'required|numeric',
+            'initiateur_id' => 'required|numeric',
         ]);
-        $operation = Operation::create($request->all());
+        $operation = Operation::create([
+            'type' => $request->type,
+            'amount' => $request->amount,
+            'user_id' => $request->user_id,
+            'initiateur_id' => $initiator->id,
+        ]);
         $user = User::find($request->user_id);
         if ($user->id != null) {
             if ($request->has(['type', 'amount', 'user_id'])) {
@@ -82,6 +123,8 @@ class operationController extends Controller
     public function show($id)
     {
         $operation = Operation::find($id);
+        $init = User::find($operation->initiateur_id);
+            $operation->initiateur = $init;
         if ($operation != null) {
             return response()->json([
                 'data' => $operation,
@@ -108,6 +151,7 @@ class operationController extends Controller
         $operation->user_id = $request->user_id;
         $operation->amount = $request->amount;
         $operation->type = $request->type;
+        $operation->initiateur_id = $request->initiateur_id;
         $operation->save();
         $user = User::find($request->user_id);
         if ($user != null) {
@@ -138,6 +182,10 @@ class operationController extends Controller
     {
         $operations = Operation::where('user_id', $id)
                                 ->get();
+        foreach ($operations as $key => $operation) {
+            $init = User::find($operation->initiateur_id);
+            $operation->initiateur = $init;
+        }
         if ($operations !=null) {
             return response()->json([
                 'data' => $operations,

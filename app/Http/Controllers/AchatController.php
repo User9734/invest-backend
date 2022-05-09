@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Achat;
+use App\Models\Operation;
 use App\Models\Type;
 use App\Models\Package;
 use App\Models\User;
@@ -61,6 +62,9 @@ class AchatController extends Controller
      */
     public function store(Request $request)
     {
+        
+        if ($request->has(['package_id','user_id', 'nb_products'])) {
+            $quotas = 0;
         $buyers = DB::table('user_roles')
             ->join('users', 'user_roles.user_id', '=', 'users.id')
             ->join('roles', 'user_roles.role_id', '=', 'roles.id')
@@ -69,37 +73,62 @@ class AchatController extends Controller
             ->get();
         $users = User::all();
         $packages = Package::all();
-        $request->validate([
-            'package_id' => 'required|numeric',
-            'user_id' => 'required|numeric',
-        ]);
-        if ($request->has(['package_id','user_id'])) {
+        $user = User::find($request->user_id);
+        
+        $package = Package::find($request->package_id);
+        $vendor = User::find($package->user_id);
+        if ($package->has('sell')) {
+            $package->sell->each(function($element){
+                global $quotas;
+                $quotas += $element->nb_products;
+            });
+        } else {
+            global $quotas;
+            $quotas = $request->nb_products;
+        }
+        
+                $request->validate([
+                    'package_id' => 'required|integer',
+                    'user_id' => 'required|integer',
+                    'nb_products' => 'required|integer|between:'. $package->nb_products / 5 .','. $package->nb_products ,
+                ]);
             if ($users->contains('id', $request->user_id) == false || $packages->contains('id', $request->package_id) == false) {
                 return response()->json([
                     'status' => '404',
                     'message' => 'user id or package id not found.'
                 ]);
             } else {
-                $user = User::find($request->user_id);
-                $package = Package::with('sell')->find($request->package_id);
                 if ($buyers->contains('id', $request->user_id) == true) {
-                    if (empty($package->sell)) {
+                    if ($package->nb_products <= $quotas) {
                         return response()->json([
                             'status' => 'false',
                             'message' => 'package already has subscription.'
-                        ]);
+                        ], 700);
                     } else {
                         if ($user->solde >= ($package->cout_acquisition * $package->nb_products)) {
                             $stamp = time() + ($package->nb_jours * 24 * 60 * 60);
                             $achat = new Achat();
                             $achat->user_id = $request->user_id;
                             $achat->package_id = $request->package_id;
+                            $achat->nb_pieces = $request->nb_products;
                             $achat->date_validite = date('Y-m-d', $stamp);
                             $achat->save();
-                            $user->solde -= ($package->cout_acquisition * $package->nb_products);
-                            $user->save();
+                            $ope = new Operation();
+                            $ope->user_id = $user->id;
+                            $ope->type = 'retrait';
+                            $ope->amount = ($package->cout_acquisition * $request->nb_products);
+                            $ope->initiateur_id = $user->id;
+                            $ope->save();
+                            $ope = new Operation();
+                            $ope->user_id = $vendor->id;
+                            $ope->type = 'depot';
+                            $ope->amount = ($package->cout_acquisition * $request->nb_products);
+                            $ope->initiateur_id = $user->id;
+                            $ope->save();
+                            $package->pieces_restantes = $package->pieces_restantes - $request->nb_products;
+                            $package->save();
                             return response()->json([
-                                'data' => $achat,
+                                'data' => $package,
                                 'status' => 'true'
                             ]);
                         } else {

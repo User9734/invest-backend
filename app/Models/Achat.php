@@ -7,12 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Achat extends Model
 {
-    protected $fillable = ['package_id'];
+    protected $fillable = ['package_id', 'nb_products'];
     protected $attributes = ['validation' => 0, ];
     use SoftDeletes;
 
     public function package(){
         return $this->belongsTo(Package::class);
+    }
+    public function usr(){
+        return $this->belongsTo(User::class);
     }
     public function user(){
         return $this->belongsTo(User::class);

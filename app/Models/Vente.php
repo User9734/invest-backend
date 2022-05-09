@@ -7,6 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Vente extends Model
 {
-    protected $fillable = ['nb_ventes', 'cout_total', 'type_id'];
+    protected $fillable = ['nb_ventes', 'package_id'];
     use SoftDeletes;
+
+    public function package(){
+        return $this->belongsTo(Package::class);
+    }
+
+    public function seller()
+    {
+        return $this->hasOneThrough(User::class, Package::class);
+    }
 }

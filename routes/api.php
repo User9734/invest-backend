@@ -52,7 +52,7 @@ Route::group([
 
 
 Route::apiResource('/users', UserController::class);
-Route::get('/fournisseurs', [UserController::class, 'getSellers'])->middleware('auth:api');
+Route::get('/fournisseurs', [UserController::class, 'getSellers']);
 Route::get('/investisseurs', [UserController::class, 'getInvestors'])->middleware('auth:api');
 Route::get('/gains/{id}', [UserController::class, 'getGain'])->middleware('auth:api');
 Route::get('/gains_inv/{id}', [UserController::class, 'getGainInv'])->middleware('auth:api');
@@ -71,12 +71,19 @@ Route::apiResource('/roles', RoleController::class);
 
 Route::apiResource('/operations', OperationController::class)->middleware('auth:api');
 Route::get('/opes/{id}', [OperationController::class, 'getOps'])->middleware('auth:api');
+Route::get('/fournisseur_ops/{id}', [OperationController::class, 'getSellerOps'])->middleware('auth:api');
 
 Route::apiResource('/types', TypeController::class);
 Route::get('/populars', [TypeController::class, 'getPopulars'])->middleware('auth:api');
+Route::post('/edit-package', [TypeController::class, 'Change'])->middleware('auth:api');
+Route::get('/show-package/{id}', [TypeController::class, 'getShit'])->middleware('auth:api');
 
 Route::apiResource('/packages', PackageController::class)->middleware('auth:api');
+Route::get('/souscris/{id}', [PackageController::class, 'getSubscribed']);
+Route::get('/rejetes', [PackageController::class, 'getRejected']);
 Route::get('/publies', [PackageController::class, 'getPublished']);
+Route::put('/edit/{id}', [PackageController::class, 'edit'])->middleware('auth:api');
+Route::get('/non_publies', [PackageController::class, 'getUnpublished']);
 Route::get('/fourn_package/{id}', [PackageController::class, 'getSellerPackages'])->middleware('auth:api');
 
 Route::apiResource('/user_roles', RoleuserController::class);

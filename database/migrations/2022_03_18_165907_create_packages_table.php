@@ -27,6 +27,7 @@ class CreatePackagesTable extends Migration
             $table->softDeletes();
             $table->foreign('type_id')->references('id')->on('types');
             $table->string('libelle');
+            $table->enum('etat', ['en cours de traitement', 'publie', 'rejete']);
             $table->timestamps();
         });
     }
